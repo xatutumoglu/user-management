@@ -10,7 +10,6 @@ public class DeleteUserRequestValidator : AbstractValidator<DeleteUserRequest>
 {
     public DeleteUserRequestValidator()
     {
-        RuleFor(x => x.Id).NotEmpty().GreaterThan(0);
-        
+        RuleFor(x => x.Id).NotEmpty().GreaterThan(0);        
     }
 }

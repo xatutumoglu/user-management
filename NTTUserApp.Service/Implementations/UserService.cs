@@ -11,7 +11,9 @@ public class UserService : IUserService
     private List<string> UserRoles = new List<string>()
     {
         "Create",
-        "Update"
+        "Update",
+        "Delete",
+        "Read"
     };
 
     public UserService(MyDbContext context)
@@ -21,11 +23,12 @@ public class UserService : IUserService
     
     public async Task<UserModel> CreateUserAsync(CreateUserRequest request)
     {
+        AuthenticateCreateUser(request);
+
         CreateUserRequestValidator _validator = new();
         await _validator.ValidateAsync(request, options => options.ThrowOnFailures());
 
-        AuthenticateCreateUser(request);
-        ValidateBusinessCreateUser(request);
+        await ValidateBusinessCreateUser(request);
 
         var item = request.ToEntity();
 
@@ -36,13 +39,18 @@ public class UserService : IUserService
     }
 
     public async Task<bool> DeleteUserAsync(DeleteUserRequest request)
-    {
-        //TODO: Model Validation yapılacak.
+    {        
+        AuthenticateDeleteUser(request);
+                
+        DeleteUserRequestValidator _validator = new();
+        _validator.Validate(request);
+                
+        await ValidateBusinessDeleteUser(request);
+
         var item = await _context.Users
             .Where(x => x.Id == request.Id)            
-            .SingleOrDefaultAsync();
-        //TODO: Authorization Validation yapılacak.
-        //TODO: Business Validation yapılacak.
+            .SingleOrDefaultAsync();        
+             
         if (item == default)
         {
             throw new Exception("Item not found!");
@@ -54,8 +62,12 @@ public class UserService : IUserService
     }
 
     public async Task<UserModel?> GetUserByIdAsync(GetUserByIdRequest request)
-    {
-        //TODO: Model Validation yapılacak.
+    {        
+        AuthenticateGetRequests();
+        
+        GetUserByIdRequestValidator _validator = new();
+        _validator.Validate(request);
+
         return await _context.Users.AsNoTracking()
             .Where(x => x.Id == request.Id)
             .Select(x => new UserModel
@@ -70,16 +82,7 @@ public class UserService : IUserService
 
     public async Task<List<UserModel>> GetUsersAsync()
     {
-        //var list = await _context.Users.AsNoTracking()
-        //    .ToListAsync();
-
-        //return list.Select(x => new UserModel()
-        //{
-        //    Id = x.Id,
-        //    Name = x.Name,
-        //    Mail = x.Mail,
-        //    TRNumber = x.TRNumber
-        //}).ToList();
+        AuthenticateGetRequests();
 
         return await _context.Users.AsNoTracking()
             .Select(x => new UserModel()
@@ -93,21 +96,18 @@ public class UserService : IUserService
     }
 
     public async Task<UserModel> UpdateUserAsync(UpdateUserRequest request)
-    {
-        // TODO: Model Validation yapılacak. 
+    {        
+        AuthenticateUpdateUser(request);
+                 
         UpdateUserRequestValidator _validator = new();
         _validator.Validate(request);
+                
+        await ValidateBusinessUpdateUser(request);
 
         var item = await _context.Users
             .Where(x => x.Id == request.Id)            
-            .SingleOrDefaultAsync();
-        // TODO: Authorization yapılacak. 
-        // TODO: Business Validation yapılacak.
-        if (item == default)
-        {
-            throw new Exception("Item not found!");
-        } 
-
+            .SingleOrDefaultAsync();        
+                
         item.Name = request.Name;
         item.Mail = request.Mail;
         item.TRNumber = request.TRNumber;
@@ -115,7 +115,18 @@ public class UserService : IUserService
         await _context.SaveChangesAsync();
         return new UserModel(item);        
     }
-    private async void AuthenticateCreateUser(CreateUserRequest request)
+
+    private async Task AuthenticateGetRequests()
+    {
+        bool isAuthorized = UserRoles.Contains("Read");
+        if (!isAuthorized)
+        {
+            throw new Exception("Forbidden!");
+        }
+    }
+
+
+    private async Task AuthenticateCreateUser(CreateUserRequest request)
     {
         bool isAuthorized = UserRoles.Contains("Create");
         if (!isAuthorized)
@@ -124,7 +135,7 @@ public class UserService : IUserService
         }
     }
 
-    private async void ValidateBusinessCreateUser(CreateUserRequest request)
+    private async Task ValidateBusinessCreateUser(CreateUserRequest request)
     {
         bool isEmailInUse = await _context.Users.AsNoTracking().Where(x => x.Mail == request.Mail).AnyAsync();
         if (isEmailInUse)
@@ -139,7 +150,7 @@ public class UserService : IUserService
         }
     }
 
-    private async void AuthenticateUpdateUser(UpdateUserRequest request)
+    private async Task AuthenticateUpdateUser(UpdateUserRequest request)
     {
         bool isAuthorized = UserRoles.Contains("Update");
         if (!isAuthorized)
@@ -148,19 +159,42 @@ public class UserService : IUserService
         }
     }
 
-    private async void ValidateBusinessUpdateUser(UpdateUserRequest request)
+    private async Task ValidateBusinessUpdateUser(UpdateUserRequest request)
     {
-        bool isEmailInUse = await _context.Users.AsNoTracking().Where(x => x.Mail == request.Mail).AnyAsync();
-        if (isEmailInUse)
-        {
-            throw new Exception("E-mail already in use!");
-        }
-
         bool isIdInUse = await _context.Users.AsNoTracking().Where(x => x.Id == request.Id).AnyAsync();
         if (!isIdInUse)
         {
             throw new Exception("User ID's not match!");
         }
 
-    }  
+        bool isEmailInUse = await _context.Users.AsNoTracking().Where(x => x.Mail == request.Mail && x.Id != request.Id).AnyAsync();
+        if (isEmailInUse)
+        {
+            throw new Exception("E-mail already in use!");
+        }
+        
+        bool isTRNumberInUse = await _context.Users.AsNoTracking().Where(x => x.TRNumber == request.TRNumber && x.Id != request.Id).AnyAsync();
+        if (isTRNumberInUse)
+        {
+            throw new Exception("TRNumber already in use!");
+        }
+    }
+
+    private async Task AuthenticateDeleteUser(DeleteUserRequest request)
+    {
+        bool isAuthorized = UserRoles.Contains("Delete");
+        if (!isAuthorized)
+        {
+            throw new Exception("Forbidden!");
+        }
+    }
+
+    private async Task ValidateBusinessDeleteUser(DeleteUserRequest request)
+    {        
+        bool isIdInUse = await _context.Users.AsNoTracking().Where(x => x.Id == request.Id).AnyAsync();
+        if (!isIdInUse)
+        {
+            throw new Exception("User ID's not found!");
+        }
+    }
 }

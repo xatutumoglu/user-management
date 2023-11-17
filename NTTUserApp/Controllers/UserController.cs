@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using NTTUserApp.Data.Entities;
+﻿using Microsoft.AspNetCore.Mvc;
 using NTTUserApp.Service.Abstractions;
 using NTTUserApp.Service.Models.Users;
 
@@ -17,14 +15,13 @@ namespace NTTUserApp.Controllers
             _userService = userService;
 
         }
-                
+
         [HttpGet]
         public async Task<ActionResult<List<UserModel>>> GetAllUsers()
         {
-            var user = await _userService.GetUsersAsync(); 
+            var user = await _userService.GetUsersAsync();
             return Ok(user);
         }
-
 
         [HttpPost]
         public async Task<ActionResult<UserModel>> CreateUser(CreateUserRequest user)
@@ -33,7 +30,28 @@ namespace NTTUserApp.Controllers
             return Ok(user);
         }
 
-        
+        [HttpPut]
+        public async Task<ActionResult<UserModel>> UpdateUser(UpdateUserRequest user)
+        {
+            var item = await _userService.UpdateUserAsync(user);
+            if (item == null)
+            {
+                return NotFound();
+            }
 
+            return Ok(item);
+        }
+
+        [HttpDelete("{Id}")]
+        public async Task<ActionResult> DeleteUser([FromRoute]DeleteUserRequest user)
+        {
+            var item = await _userService.DeleteUserAsync(user);
+            if (!item)
+            {
+                return NotFound();
+            }
+
+            return NoContent();
+        }
     }
 }
